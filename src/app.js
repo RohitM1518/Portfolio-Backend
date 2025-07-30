@@ -3,6 +3,8 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import interactionRoutes from './routes/interactionRoutes.js';
+import adminRoutes from './routes/adminRoutes.js';
+import notificationRoutes from './routes/notificationRoutes.js';
 import errorHandler from './middlewares/errorHandler.js';
 
 dotenv.config({
@@ -30,6 +32,8 @@ app.use(cookieParser());
 
 // Routes
 app.use('/api/v1/interactions', interactionRoutes);
+app.use('/api/v1/admin', adminRoutes);
+app.use('/api/v1/notifications', notificationRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
