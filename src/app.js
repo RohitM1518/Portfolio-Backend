@@ -6,12 +6,17 @@ import interactionRoutes from './routes/interactionRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import errorHandler from './middlewares/errorHandler.js';
+import { conditionalIpLogger } from './middlewares/ipLogger.js';
+import { getIPInfo, getClientIP, sanitizeIP } from './utils/ipUtils.js';
 
 dotenv.config({
   path: './.env'
 });
 
 const app = express();
+
+// Trust proxy to get real IP address
+app.set('trust proxy', true);
 
 const corsOptions = {
   origin: process.env.CORS_ORIGIN,
@@ -29,6 +34,26 @@ app.use(express.static("public"));
 
 // Parse cookies
 app.use(cookieParser());
+
+// IP Logger middleware (for debugging)
+app.use(conditionalIpLogger);
+
+// Test endpoint to verify IP address capture
+app.get('/api/v1/test-ip', (req, res) => {
+  const ipInfo = getIPInfo(req);
+  const sanitizedIP = sanitizeIP(getClientIP(req));
+  
+  res.status(200).json({
+    success: true,
+    message: 'IP address test',
+    data: {
+      ...ipInfo,
+      sanitizedIP,
+      isLocalhost: sanitizedIP === '127.0.0.1' || sanitizedIP === '::1',
+      environment: process.env.NODE_ENV || 'development'
+    }
+  });
+});
 
 // Routes
 app.use('/api/v1/interactions', interactionRoutes);

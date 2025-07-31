@@ -13,7 +13,7 @@ const trackInteraction = asyncHandler(async (req, res) => {
 
   // Get client information
   const userAgent = req.get('User-Agent') || '';
-  const ipAddress = req.ip || req.connection.remoteAddress || '';
+  const ipAddress = req.clientIP || 'unknown';
   const referrer = req.get('Referrer') || '';
   const sessionId = req.cookies.sessionId || req.headers['x-session-id'] || '';
 
@@ -38,7 +38,7 @@ const trackResumeDownload = asyncHandler(async (req, res) => {
   const { page, element, metadata } = req.body;
 
   const userAgent = req.get('User-Agent') || '';
-  const ipAddress = req.ip || req.connection.remoteAddress || '';
+  const ipAddress = req.clientIP || 'unknown';
   const referrer = req.get('Referrer') || '';
   const sessionId = req.cookies.sessionId || req.headers['x-session-id'] || '';
 
@@ -71,7 +71,7 @@ const trackPageVisit = asyncHandler(async (req, res) => {
   }
 
   const userAgent = req.get('User-Agent') || '';
-  const ipAddress = req.ip || req.connection.remoteAddress || '';
+  const ipAddress = req.clientIP || 'unknown';
   const referrer = req.get('Referrer') || '';
   const sessionId = req.cookies.sessionId || req.headers['x-session-id'] || '';
 
@@ -102,7 +102,7 @@ const trackButtonClick = asyncHandler(async (req, res) => {
   }
 
   const userAgent = req.get('User-Agent') || '';
-  const ipAddress = req.ip || req.connection.remoteAddress || '';
+  const ipAddress = req.clientIP || 'unknown';
   const referrer = req.get('Referrer') || '';
   const sessionId = req.cookies.sessionId || req.headers['x-session-id'] || '';
 
@@ -134,7 +134,7 @@ const trackFormSubmission = asyncHandler(async (req, res) => {
   }
 
   const userAgent = req.get('User-Agent') || '';
-  const ipAddress = req.ip || req.connection.remoteAddress || '';
+  const ipAddress = req.clientIP || 'unknown';
   const referrer = req.get('Referrer') || '';
   const sessionId = req.cookies.sessionId || req.headers['x-session-id'] || '';
 
