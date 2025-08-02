@@ -18,7 +18,9 @@ const sendMessage = asyncHandler(async (req, res) => {
     if (!chat) {
         chat = await Chat.create({
             sessionId,
-            messages: []
+            messages: [],
+            ipAddress: req.clientIP || 'unknown',
+            userAgent: req.get('User-Agent') || ''
         });
     }
     

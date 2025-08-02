@@ -5,7 +5,8 @@ import {
   refreshAccessToken,
   getCurrentAdmin,
   getDashboardStats,
-  getInteractionDetails
+  getInteractionDetails,
+  getChatConversations
 } from '../controllers/adminController.js';
 import { verifyJWT, requireAuth } from '../middlewares/authMiddleware.js';
 
@@ -21,5 +22,6 @@ router.post('/logout', logoutAdmin);
 router.get('/me', getCurrentAdmin);
 router.get('/dashboard/stats', getDashboardStats);
 router.get('/interactions', getInteractionDetails);
+router.get('/chat-conversations', getChatConversations);
 
 export default router; 

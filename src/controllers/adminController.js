@@ -5,6 +5,7 @@ import Interaction from '../models/interactionModel.js';
 import ApiError from '../utils/apiError.js';
 import ApiResponse from '../utils/apiResponse.js';
 import asyncHandler from '../utils/asyncHandler.js';
+import Chat from '../models/chatModel.js';
 
 const generateAccessAndRefreshTokens = async (adminId) => {
   try {
@@ -174,6 +175,97 @@ const getDashboardStats = asyncHandler(async (req, res) => {
     timestamp: { $gte: startDate }
   });
 
+  // Chatbot Analytics
+  const totalChatSessions = await Chat.countDocuments();
+  const recentChatSessions = await Chat.countDocuments({
+    createdAt: { $gte: startDate }
+  });
+
+  // Total chat messages
+  const totalChatMessages = await Chat.aggregate([
+    {
+      $project: {
+        messageCount: { $size: "$messages" }
+      }
+    },
+    {
+      $group: {
+        _id: null,
+        total: { $sum: "$messageCount" }
+      }
+    }
+  ]);
+
+  const totalMessages = totalChatMessages.length > 0 ? totalChatMessages[0].total : 0;
+
+  // Recent chat messages
+  const recentChatMessages = await Chat.aggregate([
+    {
+      $match: {
+        createdAt: { $gte: startDate }
+      }
+    },
+    {
+      $project: {
+        messageCount: { $size: "$messages" }
+      }
+    },
+    {
+      $group: {
+        _id: null,
+        total: { $sum: "$messageCount" }
+      }
+    }
+  ]);
+
+  const recentMessages = recentChatMessages.length > 0 ? recentChatMessages[0].total : 0;
+
+  // Chat interactions by day
+  const dailyChatInteractions = await Chat.aggregate([
+    {
+      $match: {
+        createdAt: { $gte: startDate }
+      }
+    },
+    {
+      $group: {
+        _id: {
+          $dateToString: { format: "%Y-%m-%d", date: "$createdAt" }
+        },
+        sessions: { $sum: 1 },
+        messages: { $sum: { $size: "$messages" } }
+      }
+    },
+    {
+      $sort: { _id: 1 }
+    }
+  ]);
+
+  // Recent chat conversations (last 5)
+  const recentChats = await Chat.find()
+    .sort({ updatedAt: -1 })
+    .limit(5)
+    .select('sessionId messages createdAt updatedAt');
+
+  // Process recent chats for summary
+  const chatSummaries = recentChats.map(chat => {
+    const userMessages = chat.messages.filter(msg => msg.role === 'user');
+    const aiMessages = chat.messages.filter(msg => msg.role === 'assistant');
+    
+    return {
+      sessionId: chat.sessionId,
+      userMessageCount: userMessages.length,
+      aiMessageCount: aiMessages.length,
+      totalMessages: chat.messages.length,
+      firstUserMessage: userMessages[0]?.content?.substring(0, 50) + '...' || 'No user messages',
+      lastMessage: chat.messages[chat.messages.length - 1]?.content?.substring(0, 50) + '...' || 'No messages',
+      createdAt: chat.createdAt,
+      updatedAt: chat.updatedAt,
+      duration: chat.messages.length > 1 ? 
+        Math.round((new Date(chat.updatedAt) - new Date(chat.createdAt)) / 1000 / 60) : 0 // minutes
+    };
+  });
+
   // Interactions by type
   const interactionsByType = await Interaction.aggregate([
     {
@@ -267,6 +359,15 @@ const getDashboardStats = asyncHandler(async (req, res) => {
     recentInteractions,
     totalResumeDownloads,
     recentResumeDownloads,
+    // Chatbot Analytics
+    chatbot: {
+      totalSessions: totalChatSessions,
+      recentSessions: recentChatSessions,
+      totalMessages,
+      recentMessages,
+      dailyInteractions: dailyChatInteractions,
+      recentConversations: chatSummaries
+    },
     uniqueVisitors: uniqueVisitorsCount,
     interactionsByType,
     pageVisits,
@@ -320,11 +421,91 @@ const getInteractionDetails = asyncHandler(async (req, res) => {
     }, "Interactions fetched successfully"));
 });
 
+const getChatConversations = asyncHandler(async (req, res) => {
+  const { page = 1, limit = 10, ipAddress, startDate, endDate, sessionId } = req.query;
+  const skip = (page - 1) * limit;
+
+  // Build query
+  const query = {};
+  
+  if (ipAddress) {
+    query.ipAddress = { $regex: ipAddress, $options: 'i' };
+  }
+  
+  if (sessionId) {
+    query.sessionId = { $regex: sessionId, $options: 'i' };
+  }
+  
+  if (startDate || endDate) {
+    query.createdAt = {};
+    if (startDate) query.createdAt.$gte = new Date(startDate);
+    if (endDate) query.createdAt.$lte = new Date(endDate);
+  }
+
+  // Get total count
+  const totalConversations = await Chat.countDocuments(query);
+
+  // Get conversations with pagination
+  const conversations = await Chat.find(query)
+    .sort({ updatedAt: -1 })
+    .skip(skip)
+    .limit(parseInt(limit))
+    .select('sessionId messages ipAddress userAgent createdAt updatedAt');
+
+  // Process conversations for detailed view
+  const detailedConversations = conversations.map(chat => {
+    const userMessages = chat.messages.filter(msg => msg.role === 'user');
+    const aiMessages = chat.messages.filter(msg => msg.role === 'assistant');
+    
+    return {
+      sessionId: chat.sessionId,
+      ipAddress: chat.ipAddress,
+      userAgent: chat.userAgent,
+      userMessageCount: userMessages.length,
+      aiMessageCount: aiMessages.length,
+      totalMessages: chat.messages.length,
+      firstUserMessage: userMessages[0]?.content || 'No user messages',
+      lastMessage: chat.messages[chat.messages.length - 1]?.content || 'No messages',
+      createdAt: chat.createdAt,
+      updatedAt: chat.updatedAt,
+      duration: chat.messages.length > 1 ? 
+        Math.round((new Date(chat.updatedAt) - new Date(chat.createdAt)) / 1000 / 60) : 0,
+      messages: chat.messages.map(msg => ({
+        role: msg.role,
+        content: msg.content,
+        timestamp: msg.timestamp
+      }))
+    };
+  });
+
+  // Get unique IP addresses for filter dropdown
+  const uniqueIPs = await Chat.distinct('ipAddress');
+
+  const result = {
+    conversations: detailedConversations,
+    pagination: {
+      currentPage: parseInt(page),
+      totalPages: Math.ceil(totalConversations / limit),
+      totalConversations,
+      hasNextPage: skip + conversations.length < totalConversations,
+      hasPrevPage: page > 1
+    },
+    filters: {
+      uniqueIPs
+    }
+  };
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, result, "Chat conversations retrieved successfully"));
+});
+
 export {
   loginAdmin,
   logoutAdmin,
   refreshAccessToken,
   getCurrentAdmin,
   getDashboardStats,
-  getInteractionDetails
+  getInteractionDetails,
+  getChatConversations
 }; 

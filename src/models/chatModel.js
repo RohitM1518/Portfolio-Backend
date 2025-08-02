@@ -23,6 +23,14 @@ const chatSchema = new mongoose.Schema({
     unique: true
   },
   messages: [messageSchema],
+  ipAddress: {
+    type: String,
+    required: true
+  },
+  userAgent: {
+    type: String,
+    default: ''
+  },
   isActive: {
     type: Boolean,
     default: true
