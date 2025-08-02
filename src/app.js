@@ -5,13 +5,25 @@ import dotenv from 'dotenv';
 import interactionRoutes from './routes/interactionRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
+import documentRoutes from './routes/documentRoutes.js';
+import chatRoutes from './routes/chatRoutes.js';
+import geminiRoutes from './routes/geminiRoutes.js';
 import errorHandler from './middlewares/errorHandler.js';
 import { conditionalIpLogger } from './middlewares/ipLogger.js';
 import { getIPInfo, getClientIP, sanitizeIP } from './utils/ipUtils.js';
+import { configGemini } from './config/geminiConfig.js';
 
 dotenv.config({
   path: './.env'
 });
+
+// Initialize Gemini configuration
+if (process.env.GEMINI_API_KEY) {
+  configGemini();
+  console.log('Gemini AI initialized successfully');
+} else {
+  console.log('GEMINI_API_KEY not found, Gemini AI will not be available');
+}
 
 const app = express();
 
@@ -59,6 +71,9 @@ app.get('/api/v1/test-ip', (req, res) => {
 app.use('/api/v1/interactions', interactionRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
+app.use('/api/v1/documents', documentRoutes);
+app.use('/api/v1/chat', chatRoutes);
+app.use('/api/v1/gemini', geminiRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

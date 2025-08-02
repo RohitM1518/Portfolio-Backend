@@ -6,7 +6,8 @@ import {
   trackButtonClick,
   trackFormSubmission,
   getInteractionStats,
-  getResumeDownloadStats
+  getResumeDownloadStats,
+  getAllInteractions
 } from '../controllers/interactionController.js';
 
 const router = Router();
@@ -23,5 +24,8 @@ router.post('/form-submission', trackFormSubmission);
 // Get statistics
 router.get('/stats', getInteractionStats);
 router.get('/resume-downloads', getResumeDownloadStats);
+
+// Get all interactions with pagination and filters
+router.get('/all', getAllInteractions);
 
 export default router; 

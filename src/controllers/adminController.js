@@ -1,9 +1,10 @@
+import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import Admin from '../models/adminModel.js';
 import Interaction from '../models/interactionModel.js';
-import APIError from '../utils/apiError.js';
-import APIResponse from '../utils/apiResponse.js';
-import { asyncHandler } from '../utils/asyncHandler.js';
+import ApiError from '../utils/apiError.js';
+import ApiResponse from '../utils/apiResponse.js';
+import asyncHandler from '../utils/asyncHandler.js';
 
 const generateAccessAndRefreshTokens = async (adminId) => {
   try {
@@ -16,7 +17,7 @@ const generateAccessAndRefreshTokens = async (adminId) => {
 
     return { accessToken, refreshToken };
   } catch (error) {
-    throw new APIError(500, "Something went wrong while generating refresh and access token");
+    throw new ApiError(500, "Something went wrong while generating refresh and access token");
   }
 };
 
@@ -24,23 +25,23 @@ const loginAdmin = asyncHandler(async (req, res) => {
   const { username, password } = req.body;
 
   if (!username || !password) {
-    throw new APIError(400, "Username and password are required");
+    throw new ApiError(400, "Username and password are required");
   }
 
   const admin = await Admin.findOne({ username: username.toLowerCase() });
 
   if (!admin) {
-    throw new APIError(401, "Invalid credentials");
+    throw new ApiError(401, "Invalid credentials");
   }
 
   const isPasswordValid = await admin.comparePassword(password);
 
   if (!isPasswordValid) {
-    throw new APIError(401, "Invalid credentials");
+    throw new ApiError(401, "Invalid credentials");
   }
 
   if (!admin.isActive) {
-    throw new APIError(401, "Account is deactivated");
+    throw new ApiError(401, "Account is deactivated");
   }
 
   const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(admin._id);
@@ -62,7 +63,7 @@ const loginAdmin = asyncHandler(async (req, res) => {
     .cookie("accessToken", accessToken, options)
     .cookie("refreshToken", refreshToken, options)
     .json(
-      new APIResponse(
+      new ApiResponse(
         200,
         {
           admin: loggedInAdmin,
@@ -96,14 +97,14 @@ const logoutAdmin = asyncHandler(async (req, res) => {
     .status(200)
     .clearCookie("accessToken", options)
     .clearCookie("refreshToken", options)
-    .json(new APIResponse(200, {}, "Admin logged out"));
+    .json(new ApiResponse(200, {}, "Admin logged out"));
 });
 
 const refreshAccessToken = asyncHandler(async (req, res) => {
   const incomingRefreshToken = req.cookies.refreshToken || req.body.refreshToken;
 
   if (!incomingRefreshToken) {
-    throw new APIError(401, "unauthorized request");
+    throw new ApiError(401, "unauthorized request");
   }
 
   try {
@@ -112,11 +113,11 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     const admin = await Admin.findById(decodedToken?._id);
 
     if (!admin) {
-      throw new APIError(401, "Invalid refresh token");
+      throw new ApiError(401, "Invalid refresh token");
     }
 
     if (incomingRefreshToken !== admin?.refreshToken) {
-      throw new APIError(401, "Refresh token is expired or used");
+      throw new ApiError(401, "Refresh token is expired or used");
     }
 
     const options = {
@@ -131,21 +132,21 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
       .cookie("accessToken", accessToken, options)
       .cookie("refreshToken", newRefreshToken, options)
       .json(
-        new APIResponse(
+        new ApiResponse(
           200,
           { accessToken, refreshToken: newRefreshToken },
           "Access token refreshed"
         )
       );
   } catch (error) {
-    throw new APIError(401, error?.message || "Invalid refresh token");
+    throw new ApiError(401, error?.message || "Invalid refresh token");
   }
 });
 
 const getCurrentAdmin = asyncHandler(async (req, res) => {
   return res
     .status(200)
-    .json(new APIResponse(200, req.admin, "Admin fetched successfully"));
+    .json(new ApiResponse(200, req.admin, "Admin fetched successfully"));
 });
 
 const getDashboardStats = asyncHandler(async (req, res) => {
@@ -159,6 +160,17 @@ const getDashboardStats = asyncHandler(async (req, res) => {
 
   // Recent interactions (last 30 days)
   const recentInteractions = await Interaction.countDocuments({
+    timestamp: { $gte: startDate }
+  });
+
+  // Resume downloads (total)
+  const totalResumeDownloads = await Interaction.countDocuments({
+    type: 'resume_download'
+  });
+
+  // Recent resume downloads (last 30 days)
+  const recentResumeDownloads = await Interaction.countDocuments({
+    type: 'resume_download',
     timestamp: { $gte: startDate }
   });
 
@@ -228,15 +240,34 @@ const getDashboardStats = asyncHandler(async (req, res) => {
     .limit(10)
     .select('type page element timestamp userAgent ipAddress');
 
-  // Unique visitors (by session)
-  const uniqueVisitors = await Interaction.distinct('sessionId', {
-    timestamp: { $gte: startDate }
-  });
+  // Unique visitors (by IP + User Agent combination for better accuracy)
+  const uniqueVisitors = await Interaction.aggregate([
+    {
+      $match: {
+        timestamp: { $gte: startDate }
+      }
+    },
+    {
+      $group: {
+        _id: {
+          ipAddress: "$ipAddress",
+          userAgent: "$userAgent"
+        }
+      }
+    },
+    {
+      $count: "uniqueVisitors"
+    }
+  ]);
+
+  const uniqueVisitorsCount = uniqueVisitors.length > 0 ? uniqueVisitors[0].uniqueVisitors : 0;
 
   const stats = {
     totalInteractions,
     recentInteractions,
-    uniqueVisitors: uniqueVisitors.length,
+    totalResumeDownloads,
+    recentResumeDownloads,
+    uniqueVisitors: uniqueVisitorsCount,
     interactionsByType,
     pageVisits,
     dailyInteractions,
@@ -250,7 +281,7 @@ const getDashboardStats = asyncHandler(async (req, res) => {
 
   return res
     .status(200)
-    .json(new APIResponse(200, stats, "Dashboard stats fetched successfully"));
+    .json(new ApiResponse(200, stats, "Dashboard stats fetched successfully"));
 });
 
 const getInteractionDetails = asyncHandler(async (req, res) => {
@@ -278,7 +309,7 @@ const getInteractionDetails = asyncHandler(async (req, res) => {
 
   return res
     .status(200)
-    .json(new APIResponse(200, {
+    .json(new ApiResponse(200, {
       interactions,
       pagination: {
         page: parseInt(page),

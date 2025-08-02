@@ -1,8 +1,8 @@
+import asyncHandler from '../utils/asyncHandler.js';
+import ApiError from '../utils/apiError.js';
+import ApiResponse from '../utils/apiResponse.js';
 import Notification from '../models/notificationModel.js';
 import Interaction from '../models/interactionModel.js';
-import APIError from '../utils/apiError.js';
-import APIResponse from '../utils/apiResponse.js';
-import { asyncHandler } from '../utils/asyncHandler.js';
 
 // Get notification preferences for admin
 const getNotificationPreferences = asyncHandler(async (req, res) => {
@@ -29,7 +29,7 @@ const getNotificationPreferences = asyncHandler(async (req, res) => {
   const finalPreferences = { ...defaultPreferences, ...preferences };
   
   res.status(200).json(
-    new APIResponse(200, finalPreferences, "Notification preferences retrieved successfully")
+    new ApiResponse(200, finalPreferences, "Notification preferences retrieved successfully")
   );
 });
 
@@ -39,7 +39,7 @@ const updateNotificationPreferences = asyncHandler(async (req, res) => {
   const { type, enabled, settings } = req.body;
   
   if (!type || !['email', 'dashboard', 'weekly_report'].includes(type)) {
-    throw new APIError(400, "Invalid notification type");
+    throw new ApiError(400, "Invalid notification type");
   }
   
   let notification = await Notification.findOne({ adminId, type });
@@ -61,7 +61,7 @@ const updateNotificationPreferences = asyncHandler(async (req, res) => {
   await notification.save();
   
   res.status(200).json(
-    new APIResponse(200, notification, "Notification preferences updated successfully")
+    new ApiResponse(200, notification, "Notification preferences updated successfully")
   );
 });
 
@@ -73,7 +73,7 @@ const getDashboardAlerts = asyncHandler(async (req, res) => {
   const dashboardNotification = await Notification.findOne({ adminId, type: 'dashboard' });
   if (!dashboardNotification || !dashboardNotification.enabled) {
     return res.status(200).json(
-      new APIResponse(200, { alerts: [] }, "Dashboard alerts are disabled")
+      new ApiResponse(200, { alerts: [] }, "Dashboard alerts are disabled")
     );
   }
   
@@ -114,7 +114,7 @@ const getDashboardAlerts = asyncHandler(async (req, res) => {
   }
   
   res.status(200).json(
-    new APIResponse(200, { alerts }, "Dashboard alerts retrieved successfully")
+    new ApiResponse(200, { alerts }, "Dashboard alerts retrieved successfully")
   );
 });
 
@@ -125,7 +125,7 @@ const sendEmailNotification = asyncHandler(async (req, res) => {
   
   const emailNotification = await Notification.findOne({ adminId, type: 'email' });
   if (!emailNotification || !emailNotification.enabled) {
-    throw new APIError(400, "Email notifications are disabled");
+    throw new ApiError(400, "Email notifications are disabled");
   }
   
   // Here you would integrate with an email service like SendGrid, AWS SES, etc.
@@ -142,7 +142,7 @@ const sendEmailNotification = asyncHandler(async (req, res) => {
   await emailNotification.save();
   
   res.status(200).json(
-    new APIResponse(200, { sent: true }, "Email notification sent successfully")
+    new ApiResponse(200, { sent: true }, "Email notification sent successfully")
   );
 });
 
@@ -152,7 +152,7 @@ const generateWeeklyReport = asyncHandler(async (req, res) => {
   
   const weeklyNotification = await Notification.findOne({ adminId, type: 'weekly_report' });
   if (!weeklyNotification || !weeklyNotification.enabled) {
-    throw new APIError(400, "Weekly reports are disabled");
+    throw new ApiError(400, "Weekly reports are disabled");
   }
   
   const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
@@ -193,7 +193,7 @@ const generateWeeklyReport = asyncHandler(async (req, res) => {
   await weeklyNotification.save();
   
   res.status(200).json(
-    new APIResponse(200, { 
+    new ApiResponse(200, { 
       report: stats,
       generatedAt: new Date(),
       period: 'last_7_days'
