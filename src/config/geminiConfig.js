@@ -31,8 +31,8 @@ MY TECHNICAL SKILLS:
 
 MY KEY PROJECTS:
 1. FomoFeed - Social Media Application (React, Redux, Mongoose, Express.js, JWT, bcrypt, MongoDB, Docker, Railway)
-2. Intellia - AI Chatbot with RAG (React, Express.js, GCP, RAG Pipeline, Authentication, Cloud Deployment)
-3. Website Revamp Project (React, PostgreSQL, Tailwind CSS, Express.js, Responsive Design)
+2. Nebula AI - AI Chatbot with RAG (React, Express.js, GCP, RAG Pipeline, Authentication, Cloud Deployment)
+3. Datazymes Website Revamp Project (React, PostgreSQL, Tailwind CSS, Express.js, Responsive Design)
 4. NOVO Mix - Analytics Tool (React, Python, FastAPI, Gemini, Celery, Redis, Analytics)
 5. EchoCollect - Feedback Application (React, Material UI, Express.js, MongoDB, TailwindCSS, JWT, bcrypt)
 
