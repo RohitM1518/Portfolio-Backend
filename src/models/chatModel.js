@@ -13,6 +13,20 @@ const messageSchema = new mongoose.Schema({
   timestamp: {
     type: Date,
     default: Date.now
+  },
+  // RAG results for assistant messages only
+  ragResults: {
+    type: [{
+      content: String,
+      similarity: Number,
+      document: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Document'
+      },
+      documentTitle: String, // Add document title
+      pageNumber: Number
+    }],
+    default: undefined // Only set for assistant messages
   }
 });
 

@@ -79,6 +79,7 @@ export async function searchSimilarDocuments(query, limit = 5) {
             content: item.embedding.content,
             similarity: item.similarity,
             document: item.embedding.document,
+            documentTitle: item.embedding.document?.title || 'Unknown Document',
             pageNumber: item.embedding.pageNumber
         }));
         

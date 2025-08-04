@@ -95,7 +95,8 @@ const sendMessage = asyncHandler(async (req, res) => {
         chat.messages.push({
             role: 'assistant',
             content: fullResponse,
-            timestamp: new Date()
+            timestamp: new Date(),
+            ragResults: relevantDocs // Save RAG results for assistant messages
         });
         
         // Save chat
@@ -208,7 +209,8 @@ const sendMessageNonStreaming = asyncHandler(async (req, res) => {
     chat.messages.push({
         role: 'assistant',
         content: aiResponse,
-        timestamp: new Date()
+        timestamp: new Date(),
+        ragResults: relevantDocs // Save RAG results for assistant messages
     });
     
     // Save chat

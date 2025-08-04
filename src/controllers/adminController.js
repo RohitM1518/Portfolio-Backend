@@ -473,7 +473,17 @@ const getChatConversations = asyncHandler(async (req, res) => {
       messages: chat.messages.map(msg => ({
         role: msg.role,
         content: msg.content,
-        timestamp: msg.timestamp
+        timestamp: msg.timestamp,
+        // Include RAG results only for assistant messages
+        ...(msg.role === 'assistant' && msg.ragResults && {
+          ragResults: msg.ragResults.map(doc => ({
+            content: doc.content,
+            similarity: doc.similarity,
+            document: doc.document,
+            documentTitle: doc.documentTitle,
+            pageNumber: doc.pageNumber
+          }))
+        })
       }))
     };
   });
