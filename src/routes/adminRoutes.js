@@ -6,7 +6,9 @@ import {
   getCurrentAdmin,
   getDashboardStats,
   getInteractionDetails,
-  getChatConversations
+  getChatConversations,
+  getChangesSinceLastLogin,
+  getEnhancedDashboardStats
 } from '../controllers/adminController.js';
 import { verifyJWT, requireAuth } from '../middlewares/authMiddleware.js';
 
@@ -21,6 +23,8 @@ router.use(verifyJWT); // Apply JWT verification to all routes below
 router.post('/logout', logoutAdmin);
 router.get('/me', getCurrentAdmin);
 router.get('/dashboard/stats', getDashboardStats);
+router.get('/dashboard/enhanced-stats', getEnhancedDashboardStats);
+router.get('/changes-since-login', getChangesSinceLastLogin);
 router.get('/interactions', getInteractionDetails);
 router.get('/chat-conversations', getChatConversations);
 

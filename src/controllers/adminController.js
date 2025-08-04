@@ -385,6 +385,477 @@ const getDashboardStats = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, stats, "Dashboard stats fetched successfully"));
 });
 
+const getChangesSinceLastLogin = asyncHandler(async (req, res) => {
+  const admin = req.admin;
+  
+  if (!admin.lastLogin) {
+    return res.status(200).json(
+      new ApiResponse(200, { changes: [], message: "No previous login found" }, "No previous login data")
+    );
+  }
+
+  const lastLogin = new Date(admin.lastLogin);
+  const currentTime = new Date();
+
+  // Get all interactions since last login
+  const interactionsSinceLastLogin = await Interaction.find({
+    timestamp: { $gte: lastLogin }
+  }).sort({ timestamp: -1 });
+
+  // Get chat sessions since last login
+  const chatSessionsSinceLastLogin = await Chat.find({
+    createdAt: { $gte: lastLogin }
+  }).sort({ createdAt: -1 });
+
+  // Get resume downloads since last login
+  const resumeDownloadsSinceLastLogin = await Interaction.find({
+    type: 'resume_download',
+    timestamp: { $gte: lastLogin }
+  }).sort({ timestamp: -1 });
+
+  // Get page visits since last login
+  const pageVisitsSinceLastLogin = await Interaction.find({
+    type: 'page_visit',
+    timestamp: { $gte: lastLogin }
+  }).sort({ timestamp: -1 });
+
+  // Calculate KPIs since last login
+  const totalInteractions = interactionsSinceLastLogin.length;
+  const totalChatSessions = chatSessionsSinceLastLogin.length;
+  const totalResumeDownloads = resumeDownloadsSinceLastLogin.length;
+  const totalPageVisits = pageVisitsSinceLastLogin.length;
+
+  // Get unique visitors since last login
+  const uniqueVisitors = await Interaction.aggregate([
+    {
+      $match: {
+        timestamp: { $gte: lastLogin }
+      }
+    },
+    {
+      $group: {
+        _id: {
+          ipAddress: "$ipAddress",
+          userAgent: "$userAgent"
+        }
+      }
+    },
+    {
+      $count: "uniqueVisitors"
+    }
+  ]);
+
+  const uniqueVisitorsCount = uniqueVisitors.length > 0 ? uniqueVisitors[0].uniqueVisitors : 0;
+
+  // Get interactions by type since last login
+  const interactionsByType = await Interaction.aggregate([
+    {
+      $match: {
+        timestamp: { $gte: lastLogin }
+      }
+    },
+    {
+      $group: {
+        _id: "$type",
+        count: { $sum: 1 }
+      }
+    },
+    {
+      $sort: { count: -1 }
+    }
+  ]);
+
+  // Get page visits breakdown since last login
+  const pageVisitsBreakdown = await Interaction.aggregate([
+    {
+      $match: {
+        type: "page_visit",
+        timestamp: { $gte: lastLogin }
+      }
+    },
+    {
+      $group: {
+        _id: "$page",
+        count: { $sum: 1 }
+      }
+    },
+    {
+      $sort: { count: -1 }
+    }
+  ]);
+
+  // Get hourly activity since last login
+  const hourlyActivity = await Interaction.aggregate([
+    {
+      $match: {
+        timestamp: { $gte: lastLogin }
+      }
+    },
+    {
+      $group: {
+        _id: {
+          hour: { $hour: "$timestamp" },
+          date: { $dateToString: { format: "%Y-%m-%d", date: "$timestamp" } }
+        },
+        count: { $sum: 1 }
+      }
+    },
+    {
+      $sort: { "_id.date": 1, "_id.hour": 1 }
+    }
+  ]);
+
+  // Calculate time difference
+  const timeDiff = currentTime - lastLogin;
+  const hoursSinceLastLogin = Math.floor(timeDiff / (1000 * 60 * 60));
+  const daysSinceLastLogin = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
+
+  const changes = {
+    timeSinceLastLogin: {
+      hours: hoursSinceLastLogin,
+      days: daysSinceLastLogin,
+      lastLogin: lastLogin,
+      currentTime: currentTime
+    },
+    kpis: {
+      totalInteractions,
+      totalChatSessions,
+      totalResumeDownloads,
+      totalPageVisits,
+      uniqueVisitors: uniqueVisitorsCount,
+      averageInteractionsPerHour: hoursSinceLastLogin > 0 ? (totalInteractions / hoursSinceLastLogin).toFixed(2) : 0
+    },
+    interactionsByType,
+    pageVisitsBreakdown,
+    hourlyActivity,
+    recentInteractions: interactionsSinceLastLogin.slice(0, 20), // Last 20 interactions
+    recentChatSessions: chatSessionsSinceLastLogin.slice(0, 10), // Last 10 chat sessions
+    recentResumeDownloads: resumeDownloadsSinceLastLogin.slice(0, 10) // Last 10 resume downloads
+  };
+
+  return res.status(200).json(
+    new ApiResponse(200, { changes }, "Changes since last login retrieved successfully")
+  );
+});
+
+const getEnhancedDashboardStats = asyncHandler(async (req, res) => {
+  // Get date range for filtering (last 30 days by default)
+  const days = parseInt(req.query.days) || 30;
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days);
+
+  // Get admin's last login for comparison
+  const admin = req.admin;
+  const lastLogin = admin.lastLogin ? new Date(admin.lastLogin) : null;
+
+  // Total interactions
+  const totalInteractions = await Interaction.countDocuments();
+
+  // Recent interactions (last 30 days)
+  const recentInteractions = await Interaction.countDocuments({
+    timestamp: { $gte: startDate }
+  });
+
+  // Interactions since last login (if available)
+  const interactionsSinceLastLogin = lastLogin ? 
+    await Interaction.countDocuments({
+      timestamp: { $gte: lastLogin }
+    }) : 0;
+
+  // Resume downloads (total)
+  const totalResumeDownloads = await Interaction.countDocuments({
+    type: 'resume_download'
+  });
+
+  // Recent resume downloads (last 30 days)
+  const recentResumeDownloads = await Interaction.countDocuments({
+    type: 'resume_download',
+    timestamp: { $gte: startDate }
+  });
+
+  // Resume downloads since last login
+  const resumeDownloadsSinceLastLogin = lastLogin ? 
+    await Interaction.countDocuments({
+      type: 'resume_download',
+      timestamp: { $gte: lastLogin }
+    }) : 0;
+
+  // Chatbot Analytics
+  const totalChatSessions = await Chat.countDocuments();
+  const recentChatSessions = await Chat.countDocuments({
+    createdAt: { $gte: startDate }
+  });
+
+  const chatSessionsSinceLastLogin = lastLogin ? 
+    await Chat.countDocuments({
+      createdAt: { $gte: lastLogin }
+    }) : 0;
+
+  // Total chat messages
+  const totalChatMessages = await Chat.aggregate([
+    {
+      $project: {
+        messageCount: { $size: "$messages" }
+      }
+    },
+    {
+      $group: {
+        _id: null,
+        total: { $sum: "$messageCount" }
+      }
+    }
+  ]);
+
+  const totalMessages = totalChatMessages.length > 0 ? totalChatMessages[0].total : 0;
+
+  // Recent chat messages
+  const recentChatMessages = await Chat.aggregate([
+    {
+      $match: {
+        createdAt: { $gte: startDate }
+      }
+    },
+    {
+      $project: {
+        messageCount: { $size: "$messages" }
+      }
+    },
+    {
+      $group: {
+        _id: null,
+        total: { $sum: "$messageCount" }
+      }
+    }
+  ]);
+
+  const recentMessages = recentChatMessages.length > 0 ? recentChatMessages[0].total : 0;
+
+  // Messages since last login
+  const messagesSinceLastLogin = lastLogin ? await Chat.aggregate([
+    {
+      $match: {
+        createdAt: { $gte: lastLogin }
+      }
+    },
+    {
+      $project: {
+        messageCount: { $size: "$messages" }
+      }
+    },
+    {
+      $group: {
+        _id: null,
+        total: { $sum: "$messageCount" }
+      }
+    }
+  ]) : [];
+
+  const messagesSinceLogin = messagesSinceLastLogin.length > 0 ? messagesSinceLastLogin[0].total : 0;
+
+  // Chat interactions by day
+  const dailyChatInteractions = await Chat.aggregate([
+    {
+      $match: {
+        createdAt: { $gte: startDate }
+      }
+    },
+    {
+      $group: {
+        _id: {
+          $dateToString: { format: "%Y-%m-%d", date: "$createdAt" }
+        },
+        sessions: { $sum: 1 },
+        messages: { $sum: { $size: "$messages" } }
+      }
+    },
+    {
+      $sort: { _id: 1 }
+    }
+  ]);
+
+  // Recent chat conversations (last 5)
+  const recentChats = await Chat.find()
+    .sort({ updatedAt: -1 })
+    .limit(5)
+    .select('sessionId messages createdAt updatedAt');
+
+  // Process recent chats for summary
+  const chatSummaries = recentChats.map(chat => {
+    const userMessages = chat.messages.filter(msg => msg.role === 'user');
+    const aiMessages = chat.messages.filter(msg => msg.role === 'assistant');
+    
+    return {
+      sessionId: chat.sessionId,
+      userMessageCount: userMessages.length,
+      aiMessageCount: aiMessages.length,
+      totalMessages: chat.messages.length,
+      firstUserMessage: userMessages[0]?.content?.substring(0, 50) + '...' || 'No user messages',
+      lastMessage: chat.messages[chat.messages.length - 1]?.content?.substring(0, 50) + '...' || 'No messages',
+      createdAt: chat.createdAt,
+      updatedAt: chat.updatedAt,
+      duration: chat.messages.length > 1 ? 
+        Math.round((new Date(chat.updatedAt) - new Date(chat.createdAt)) / 1000 / 60) : 0 // minutes
+    };
+  });
+
+  // Interactions by type
+  const interactionsByType = await Interaction.aggregate([
+    {
+      $match: {
+        timestamp: { $gte: startDate }
+      }
+    },
+    {
+      $group: {
+        _id: "$type",
+        count: { $sum: 1 }
+      }
+    },
+    {
+      $sort: { count: -1 }
+    }
+  ]);
+
+  // Page visits
+  const pageVisits = await Interaction.aggregate([
+    {
+      $match: {
+        type: "page_visit",
+        timestamp: { $gte: startDate }
+      }
+    },
+    {
+      $group: {
+        _id: "$page",
+        count: { $sum: 1 }
+      }
+    },
+    {
+      $sort: { count: -1 }
+    },
+    {
+      $limit: 10
+    }
+  ]);
+
+  // Daily interactions for chart
+  const dailyInteractions = await Interaction.aggregate([
+    {
+      $match: {
+        timestamp: { $gte: startDate }
+      }
+    },
+    {
+      $group: {
+        _id: {
+          $dateToString: { format: "%Y-%m-%d", date: "$timestamp" }
+        },
+        count: { $sum: 1 }
+      }
+    },
+    {
+      $sort: { _id: 1 }
+    }
+  ]);
+
+  // Recent activity (last 10 interactions)
+  const recentActivity = await Interaction.find()
+    .sort({ timestamp: -1 })
+    .limit(10)
+    .select('type page element timestamp userAgent ipAddress');
+
+  // Unique visitors (by IP + User Agent combination for better accuracy)
+  const uniqueVisitors = await Interaction.aggregate([
+    {
+      $match: {
+        timestamp: { $gte: startDate }
+      }
+    },
+    {
+      $group: {
+        _id: {
+          ipAddress: "$ipAddress",
+          userAgent: "$userAgent"
+        }
+      }
+    },
+    {
+      $count: "uniqueVisitors"
+    }
+  ]);
+
+  const uniqueVisitorsCount = uniqueVisitors.length > 0 ? uniqueVisitors[0].uniqueVisitors : 0;
+
+  // Calculate growth rates
+  const previousPeriodStart = new Date(startDate);
+  previousPeriodStart.setDate(previousPeriodStart.getDate() - days);
+  
+  const previousInteractions = await Interaction.countDocuments({
+    timestamp: { $gte: previousPeriodStart, $lt: startDate }
+  });
+
+  const previousResumeDownloads = await Interaction.countDocuments({
+    type: 'resume_download',
+    timestamp: { $gte: previousPeriodStart, $lt: startDate }
+  });
+
+  const previousChatSessions = await Chat.countDocuments({
+    createdAt: { $gte: previousPeriodStart, $lt: startDate }
+  });
+
+  // Calculate growth percentages
+  const interactionGrowth = previousInteractions > 0 ? 
+    ((recentInteractions - previousInteractions) / previousInteractions * 100).toFixed(2) : 0;
+  
+  const resumeDownloadGrowth = previousResumeDownloads > 0 ? 
+    ((recentResumeDownloads - previousResumeDownloads) / previousResumeDownloads * 100).toFixed(2) : 0;
+  
+  const chatSessionGrowth = previousChatSessions > 0 ? 
+    ((recentChatSessions - previousChatSessions) / previousChatSessions * 100).toFixed(2) : 0;
+
+  const stats = {
+    totalInteractions,
+    recentInteractions,
+    interactionsSinceLastLogin,
+    totalResumeDownloads,
+    recentResumeDownloads,
+    resumeDownloadsSinceLastLogin,
+    // Chatbot Analytics
+    chatbot: {
+      totalSessions: totalChatSessions,
+      recentSessions: recentChatSessions,
+      chatSessionsSinceLastLogin,
+      totalMessages,
+      recentMessages,
+      messagesSinceLastLogin,
+      dailyInteractions: dailyChatInteractions,
+      recentConversations: chatSummaries
+    },
+    uniqueVisitors: uniqueVisitorsCount,
+    interactionsByType,
+    pageVisits,
+    dailyInteractions,
+    recentActivity,
+    growth: {
+      interactions: interactionGrowth,
+      resumeDownloads: resumeDownloadGrowth,
+      chatSessions: chatSessionGrowth
+    },
+    dateRange: {
+      start: startDate,
+      end: new Date(),
+      days
+    },
+    lastLogin: admin.lastLogin
+  };
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(200, stats, "Enhanced dashboard stats retrieved successfully")
+    );
+});
+
 const getInteractionDetails = asyncHandler(async (req, res) => {
   const { page = 1, limit = 20, type, page: pageName, startDate, endDate } = req.query;
 
@@ -522,5 +993,7 @@ export {
   getCurrentAdmin,
   getDashboardStats,
   getInteractionDetails,
-  getChatConversations
+  getChatConversations,
+  getChangesSinceLastLogin,
+  getEnhancedDashboardStats
 }; 
