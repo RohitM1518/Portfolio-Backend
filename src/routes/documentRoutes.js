@@ -4,13 +4,17 @@ import {
     getAllDocuments,
     getDocumentById,
     updateDocument,
-    deleteDocument
+    deleteDocument,
+    streamDocumentLogs
 } from '../controllers/documentController.js';
 import { verifyJWT } from '../middlewares/authMiddleware.js';
 
 const router = express.Router();
 
-// Apply authentication middleware to all routes
+// SSE route for streaming processing logs (no auth middleware - will handle auth manually)
+router.get('/logs/:documentId', streamDocumentLogs);
+
+// Apply authentication middleware to all other routes
 router.use(verifyJWT);
 
 // Document routes

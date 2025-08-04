@@ -3,15 +3,19 @@ import path from 'path';
 import { getEmbeddings } from './embeddingUtils.js';
 import Embedding from '../models/embeddingModel.js';
 import { cosineSimilarity } from './embeddingUtils.js';
+import { sendProcessingLog } from '../controllers/documentController.js';
 
-export async function processDocument(documentId, content) {
+export async function processDocument(documentId, content, documentIdString) {
     try {
-        console.log("Starting document processing for document ID:", documentId);
-        console.log("Content length:", content.length);
+        sendProcessingLog(documentIdString, "Starting document processing for document ID: " + documentId, 'info');
+        sendProcessingLog(documentIdString, "Content length: " + content.length, 'info');
         
         if (!content || content.trim().length === 0) {
+            sendProcessingLog(documentIdString, "❌ No content provided for processing", 'error');
             throw new Error('No content provided for processing');
         }
+        
+        sendProcessingLog(documentIdString, "📊 Analyzing content structure...", 'info');
         
         // Simple text chunking (split by paragraphs)
         const paragraphs = content.split(/\n\s*\n/).filter(p => p.trim().length > 50);
@@ -22,13 +26,15 @@ export async function processDocument(documentId, content) {
             chunks = content.split(/[.!?]+/).filter(s => s.trim().length > 20);
         }
         
-        console.log(`Successfully chunked the content into ${chunks.length} chunks.`);
+        sendProcessingLog(documentIdString, `✂️ Successfully chunked the content into ${chunks.length} chunks.`, 'info');
         
         // Generate embeddings and store them
-        console.log("Generating embeddings and inserting documents.");
+        sendProcessingLog(documentIdString, "🧠 Generating embeddings and inserting documents.", 'info');
         let docCount = 0;
         
         await Promise.all(chunks.map(async (chunk, index) => {
+            sendProcessingLog(documentIdString, `Generating embeddings for text: ${chunk.substring(0, 100)}...`, 'info');
+            
             const embeddings = await getEmbeddings(chunk);
             
             // Insert the embeddings and the chunked content
@@ -43,10 +49,11 @@ export async function processDocument(documentId, content) {
             docCount += 1;
         }));
         
-        console.log(`Successfully inserted ${docCount} document chunks.`);
+        sendProcessingLog(documentIdString, `✅ Successfully inserted ${docCount} document chunks.`, 'success');
         return docCount;
         
     } catch (error) {
+        sendProcessingLog(documentIdString, `❌ Error processing document: ${error.message}`, 'error');
         console.error("Error processing document:", error);
         throw error;
     }
