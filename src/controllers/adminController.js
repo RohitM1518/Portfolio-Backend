@@ -474,6 +474,11 @@ const getChatConversations = asyncHandler(async (req, res) => {
         role: msg.role,
         content: msg.content,
         timestamp: msg.timestamp,
+        // Include original and rephrased questions for user messages
+        ...(msg.role === 'user' && msg.originalQuestion && {
+          originalQuestion: msg.originalQuestion,
+          rephrasedQuestion: msg.rephrasedQuestion
+        }),
         // Include RAG results only for assistant messages
         ...(msg.role === 'assistant' && msg.ragResults && {
           ragResults: msg.ragResults.map(doc => ({

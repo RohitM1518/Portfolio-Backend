@@ -3,6 +3,7 @@ import APIError from "../utils/apiError.js";
 import APIResponse from "../utils/apiResponse.js";
 import { model, chatbotModel } from "../config/geminiConfig.js";
 import { searchSimilarDocuments } from '../utils/documentProcessor.js';
+import { rephraseQuestionWithContext } from '../utils/questionRephrasing.js';
 
 const chatBot = async (req, res) => {
     const { prompt, messages = [] } = req.body;
@@ -12,8 +13,11 @@ const chatBot = async (req, res) => {
     }
 
     try {
-        // Get relevant documents using RAG
-        const relevantDocs = await searchSimilarDocuments(prompt, 3);
+        // Rephrase the question for better document retrieval
+        const rephrasedPrompt = await rephraseQuestionWithContext(prompt, messages);
+        
+        // Get relevant documents using RAG with rephrased question
+        const relevantDocs = await searchSimilarDocuments(rephrasedPrompt, 3);
         let context = "";
         
         if (relevantDocs.length > 0) {

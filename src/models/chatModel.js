@@ -14,6 +14,15 @@ const messageSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   },
+  // Store original and rephrased questions for user messages
+  originalQuestion: {
+    type: String,
+    default: undefined // Only set for user messages
+  },
+  rephrasedQuestion: {
+    type: String,
+    default: undefined // Only set for user messages
+  },
   // RAG results for assistant messages only
   ragResults: {
     type: [{

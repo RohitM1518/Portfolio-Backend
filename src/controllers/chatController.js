@@ -3,6 +3,7 @@ import ApiError from '../utils/apiError.js';
 import ApiResponse from '../utils/apiResponse.js';
 import Chat from '../models/chatModel.js';
 import { searchSimilarDocuments } from '../utils/documentProcessor.js';
+import { rephraseQuestionWithContext } from '../utils/questionRephrasing.js';
 import { chatbotModel } from '../config/geminiConfig.js';
 
 // Send a message and get AI response with streaming
@@ -28,11 +29,20 @@ const sendMessage = asyncHandler(async (req, res) => {
     chat.messages.push({
         role: 'user',
         content: message,
-        timestamp: new Date()
+        timestamp: new Date(),
+        originalQuestion: message,
+        rephrasedQuestion: null // Will be updated after rephrasing
     });
     
-    // Search for relevant documents
-    const relevantDocs = await searchSimilarDocuments(message, 3);
+    // Rephrase the question for better document retrieval
+    const chatHistory = chat.messages.slice(0, -1); // Exclude the current message
+    const rephrasedQuestion = await rephraseQuestionWithContext(message, chatHistory);
+    
+    // Update the user message with the rephrased question
+    chat.messages[chat.messages.length - 1].rephrasedQuestion = rephrasedQuestion;
+    
+    // Search for relevant documents using rephrased question
+    const relevantDocs = await searchSimilarDocuments(rephrasedQuestion, 3);
     
     // Create context from relevant documents
     let context = "";
@@ -158,11 +168,20 @@ const sendMessageNonStreaming = asyncHandler(async (req, res) => {
     chat.messages.push({
         role: 'user',
         content: message,
-        timestamp: new Date()
+        timestamp: new Date(),
+        originalQuestion: message,
+        rephrasedQuestion: null // Will be updated after rephrasing
     });
     
-    // Search for relevant documents
-    const relevantDocs = await searchSimilarDocuments(message, 3);
+    // Rephrase the question for better document retrieval
+    const chatHistory = chat.messages.slice(0, -1); // Exclude the current message
+    const rephrasedQuestion = await rephraseQuestionWithContext(message, chatHistory);
+    
+    // Update the user message with the rephrased question
+    chat.messages[chat.messages.length - 1].rephrasedQuestion = rephrasedQuestion;
+    
+    // Search for relevant documents using rephrased question
+    const relevantDocs = await searchSimilarDocuments(rephrasedQuestion, 3);
     
     // Create context from relevant documents
     let context = "";
